@@ -199,67 +199,85 @@ async function executeTool(
 const SYSTEM_PROMPT = `You are a helpful assistant embedded in a speedtest monitoring dashboard. You help the user analyze their internet speed test data.
 
 You have tools to query the Speedtest Tracker API. Key facts about the data:
-- Download and upload values in results are in bytes/sec. Multiply by 8 and divide by 1,000,000 to get Mbps.
+- Download and upload speeds in tool results are already in Mbps.
 - Ping is in milliseconds.
 - Tests run hourly and can be "completed" or "failed".
 - The ISP is Telefonica de Espana, testing against a Vodafone ES server in Madrid, Spain.
 
 When answering:
-- Convert raw bytes/sec to Mbps for readability.
 - Be concise but thorough.
+- Use markdown formatting (headers, bold, lists, tables) for readability.
 - If the user asks about trends, fetch enough data to give a meaningful answer.
 - Today's date is ${new Date().toISOString().split("T")[0]}.`;
 
 app.post("/api/chat", async (c) => {
-  const { messages } = await c.req.json<{
-    messages: Anthropic.MessageParam[];
-  }>();
+  try {
+    const { messages } = await c.req.json<{
+      messages: Anthropic.MessageParam[];
+    }>();
 
-  const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
-
-  let currentMessages = [...messages];
-
-  // Tool use loop — run tools until we get a final text response
-  for (let i = 0; i < 10; i++) {
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      tools,
-      messages: currentMessages,
-    });
-
-    if (response.stop_reason === "tool_use") {
-      // Execute all tool calls
-      const toolResults: Anthropic.ToolResultBlockParam[] = [];
-      for (const block of response.content) {
-        if (block.type === "tool_use") {
-          const result = await executeTool(
-            block.name,
-            block.input as Record<string, unknown>
-          );
-          toolResults.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: result,
-          });
-        }
-      }
-
-      // Add assistant response and tool results to conversation
-      currentMessages.push({ role: "assistant", content: response.content });
-      currentMessages.push({ role: "user", content: toolResults });
-    } else {
-      // Final response — extract text
-      const text = response.content
-        .filter((b): b is Anthropic.TextBlock => b.type === "text")
-        .map((b) => b.text)
-        .join("");
-      return c.json({ response: text });
+    if (!CLAUDE_API_KEY) {
+      return c.json({ error: "ANTHROPIC_API_KEY is not configured on the server." }, 500);
     }
-  }
 
-  return c.json({ response: "Sorry, I hit my tool use limit. Try a simpler question." });
+    const client = new Anthropic({ apiKey: CLAUDE_API_KEY });
+
+    // Only send the last 20 messages to avoid token bloat
+    let currentMessages = messages.slice(-20);
+
+    // Tool use loop — run tools until we get a final text response
+    for (let i = 0; i < 10; i++) {
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        tools,
+        messages: currentMessages,
+      });
+
+      if (response.stop_reason === "tool_use") {
+        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+        for (const block of response.content) {
+          if (block.type === "tool_use") {
+            try {
+              const result = await executeTool(
+                block.name,
+                block.input as Record<string, unknown>
+              );
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: result,
+              });
+            } catch (toolErr: any) {
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: JSON.stringify({ error: toolErr.message }),
+                is_error: true,
+              });
+            }
+          }
+        }
+
+        currentMessages.push({ role: "assistant", content: response.content });
+        currentMessages.push({ role: "user", content: toolResults });
+      } else {
+        const text = response.content
+          .filter((b): b is Anthropic.TextBlock => b.type === "text")
+          .map((b) => b.text)
+          .join("");
+        return c.json({ response: text });
+      }
+    }
+
+    return c.json({ response: "Sorry, I hit my tool use limit. Try a simpler question." });
+  } catch (err: any) {
+    const status = err.status ?? 500;
+    const msg = err.error?.error?.message ?? err.message ?? "Unknown error";
+    console.error("Chat error:", msg);
+    return c.json({ error: msg }, status);
+  }
 });
 
 // Serve static files

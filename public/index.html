@@ -6,6 +6,7 @@
   <title>Speedtest Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
   <style>
     :root {
       --bg: #0f1117;
@@ -249,6 +250,44 @@
     .badge.failed { background: rgba(239,68,68,0.15); color: var(--danger); }
     .isp-info { font-size: 0.8rem; color: var(--muted); display: flex; gap: 16px; align-items: center; }
     .isp-info span { display: flex; align-items: center; gap: 4px; }
+
+    /* Markdown inside chat messages */
+    .chat-msg.assistant h1, .chat-msg.assistant h2, .chat-msg.assistant h3 {
+      font-size: 0.9rem; font-weight: 600; margin: 8px 0 4px 0;
+    }
+    .chat-msg.assistant h1:first-child, .chat-msg.assistant h2:first-child, .chat-msg.assistant h3:first-child { margin-top: 0; }
+    .chat-msg.assistant p { margin: 4px 0; }
+    .chat-msg.assistant ul, .chat-msg.assistant ol { margin: 4px 0; padding-left: 20px; }
+    .chat-msg.assistant li { margin: 2px 0; }
+    .chat-msg.assistant code {
+      background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; font-size: 0.8rem;
+    }
+    .chat-msg.assistant pre { background: rgba(255,255,255,0.06); padding: 8px 10px; border-radius: 6px; overflow-x: auto; margin: 6px 0; }
+    .chat-msg.assistant pre code { background: none; padding: 0; }
+    .chat-msg.assistant strong { color: var(--text); }
+    .chat-msg.assistant table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 0.8rem; }
+    .chat-msg.assistant th, .chat-msg.assistant td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+    .chat-msg.assistant th { background: rgba(255,255,255,0.04); font-weight: 500; }
+
+    /* Error + retry */
+    .chat-msg.error {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+    .chat-retry {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      margin-top: 6px;
+      transition: all 0.15s;
+    }
+    .chat-retry:hover { background: var(--border); }
   </style>
 </head>
 <body>
@@ -480,7 +519,7 @@
     loadData('24h');
 
     // --- Chat ---
-    let chatHistory = []; // {role, content} pairs for Claude API
+    let chatHistory = [];
     let chatBusy = false;
 
     function toggleChat() {
@@ -490,24 +529,43 @@
       }
     }
 
-    function addChatMsg(role, text) {
+    function scrollChat() {
+      $('#chat-messages').scrollTop = $('#chat-messages').scrollHeight;
+    }
+
+    function addChatMsg(role, content, { html = false } = {}) {
       const el = document.createElement('div');
       el.className = `chat-msg ${role}`;
-      el.textContent = text;
+      if (html) {
+        el.innerHTML = content;
+      } else {
+        el.textContent = content;
+      }
       $('#chat-messages').appendChild(el);
-      $('#chat-messages').scrollTop = $('#chat-messages').scrollHeight;
+      scrollChat();
       return el;
     }
 
-    async function sendMessage() {
-      const input = $('#chat-input');
-      const text = input.value.trim();
-      if (!text || chatBusy) return;
+    function addErrorMsg(errorText, onRetry) {
+      const el = document.createElement('div');
+      el.className = 'chat-msg error';
+      const msg = document.createElement('div');
+      msg.textContent = errorText;
+      el.appendChild(msg);
+      const btn = document.createElement('button');
+      btn.className = 'chat-retry';
+      btn.textContent = 'Retry';
+      btn.onclick = () => {
+        el.remove();
+        onRetry();
+      };
+      el.appendChild(btn);
+      $('#chat-messages').appendChild(el);
+      scrollChat();
+      return el;
+    }
 
-      input.value = '';
-      addChatMsg('user', text);
-      chatHistory.push({ role: 'user', content: text });
-
+    async function doSend() {
       chatBusy = true;
       $('#chat-send').disabled = true;
       const thinkingEl = addChatMsg('thinking', 'Analyzing data...');
@@ -521,16 +579,33 @@
         const data = await res.json();
         thinkingEl.remove();
 
-        const reply = data.response || 'Sorry, something went wrong.';
-        addChatMsg('assistant', reply);
+        if (!res.ok) {
+          const errMsg = data.error || `Request failed (${res.status})`;
+          addErrorMsg(errMsg, doSend);
+          return;
+        }
+
+        const reply = data.response || 'Sorry, I got an empty response.';
+        addChatMsg('assistant', marked.parse(reply), { html: true });
         chatHistory.push({ role: 'assistant', content: reply });
       } catch (err) {
         thinkingEl.remove();
-        addChatMsg('assistant', 'Error: ' + err.message);
+        addErrorMsg(`Network error: ${err.message}`, doSend);
       } finally {
         chatBusy = false;
         $('#chat-send').disabled = false;
       }
+    }
+
+    async function sendMessage() {
+      const input = $('#chat-input');
+      const text = input.value.trim();
+      if (!text || chatBusy) return;
+
+      input.value = '';
+      addChatMsg('user', text);
+      chatHistory.push({ role: 'user', content: text });
+      doSend();
     }
 
     $('#chat-input').addEventListener('keydown', (e) => {
