@@ -119,14 +119,38 @@ const tools: Anthropic.Tool[] = [
   },
 ];
 
+function summarizeResult(r: any) {
+  return {
+    id: r.id,
+    status: r.status,
+    ping: r.ping,
+    download_mbps: r.download ? +((r.download * 8) / 1e6).toFixed(1) : null,
+    upload_mbps: r.upload ? +((r.upload * 8) / 1e6).toFixed(1) : null,
+    scheduled: r.scheduled,
+    created_at: r.created_at,
+  };
+}
+
 async function executeTool(
   name: string,
   input: Record<string, unknown>
 ): Promise<string> {
   switch (name) {
     case "get_latest_result": {
-      const data = await fetchSpeedtest("/results/latest");
-      return JSON.stringify(data);
+      const res = await fetchSpeedtest("/results/latest");
+      const r = res.data;
+      return JSON.stringify({
+        ...summarizeResult(r),
+        packet_loss: r.data?.packetLoss,
+        isp: r.data?.isp,
+        server: r.data?.server
+          ? { name: r.data.server.name, location: r.data.server.location, country: r.data.server.country }
+          : null,
+        ping_detail: r.data?.ping,
+        download_latency: r.data?.download?.latency,
+        upload_latency: r.data?.upload?.latency,
+        external_ip: r.data?.interface?.externalIp,
+      });
     }
     case "get_stats": {
       const url = new URL(`${SPEEDTEST_API}/stats`);
@@ -142,11 +166,30 @@ async function executeTool(
       if (input.start_at)
         url.searchParams.set("filter[start_at]", `>=${input.start_at}`);
       const res = await fetch(url.toString(), { headers: stHeaders });
-      return JSON.stringify(await res.json());
+      const json = await res.json();
+      return JSON.stringify({
+        results: (json.data || []).map(summarizeResult),
+        total: json.meta?.total,
+        per_page: json.meta?.per_page,
+        current_page: json.meta?.current_page,
+      });
     }
     case "get_single_result": {
-      const data = await fetchSpeedtest(`/results/${input.id}`);
-      return JSON.stringify(data);
+      const res = await fetchSpeedtest(`/results/${input.id}`);
+      const r = res.data;
+      return JSON.stringify({
+        ...summarizeResult(r),
+        packet_loss: r.data?.packetLoss,
+        isp: r.data?.isp,
+        server: r.data?.server
+          ? { name: r.data.server.name, location: r.data.server.location, country: r.data.server.country }
+          : null,
+        ping_detail: r.data?.ping,
+        download_latency: r.data?.download?.latency,
+        upload_latency: r.data?.upload?.latency,
+        external_ip: r.data?.interface?.externalIp,
+        error_message: r.data?.error,
+      });
     }
     default:
       return JSON.stringify({ error: `Unknown tool: ${name}` });

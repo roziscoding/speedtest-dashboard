@@ -478,7 +478,6 @@
       btn.addEventListener('click', () => loadData(btn.dataset.range));
     });
     loadData('24h');
-    setInterval(() => loadData(currentRange), 60000);
 
     // --- Chat ---
     let chatHistory = []; // {role, content} pairs for Claude API
