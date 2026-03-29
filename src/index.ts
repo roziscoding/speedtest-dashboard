@@ -21,9 +21,7 @@ app.get("/api/latest", async (c) => {
 app.get("/api/stats", async (c) => {
   const url = new URL(`${SPEEDTEST_API}/stats`);
   const start = c.req.query("start_at");
-  const end = c.req.query("end_at");
-  if (start) url.searchParams.set("start_at", start);
-  if (end) url.searchParams.set("end_at", end);
+  if (start) url.searchParams.set("filter[start_at]", `>=${start}`);
   const res = await fetch(url.toString(), { headers });
   return c.json(await res.json());
 });
@@ -31,14 +29,12 @@ app.get("/api/stats", async (c) => {
 // Proxy: paginated results
 app.get("/api/results", async (c) => {
   const url = new URL(`${SPEEDTEST_API}/results`);
-  url.searchParams.set("per.page", c.req.query("per_page") ?? "500");
+  url.searchParams.set("page[size]", c.req.query("per_page") ?? "500");
   url.searchParams.set("sort", c.req.query("sort") ?? "-created_at");
   const page = c.req.query("page");
   if (page) url.searchParams.set("page[number]", page);
   const start = c.req.query("start_at");
-  const end = c.req.query("end_at");
-  if (start) url.searchParams.set("filter[start_at]", start);
-  if (end) url.searchParams.set("filter[end_at]", end);
+  if (start) url.searchParams.set("filter[start_at]", `>=${start}`);
   const res = await fetch(url.toString(), { headers });
   return c.json(await res.json());
 });
