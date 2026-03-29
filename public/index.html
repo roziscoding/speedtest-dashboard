@@ -18,6 +18,7 @@
       --ping: #f59e0b;
       --success: #22c55e;
       --danger: #ef4444;
+      --chat-width: 380px;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -26,7 +27,155 @@
       color: var(--text);
       min-height: 100vh;
     }
-    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+    /* Layout: dashboard + chat side panel */
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+    .dashboard {
+      flex: 1;
+      min-width: 0;
+      padding: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+      transition: margin-right 0.2s;
+    }
+    .layout.chat-open .dashboard { margin-right: 0; }
+
+    /* Chat panel */
+    .chat-panel {
+      width: var(--chat-width);
+      min-width: var(--chat-width);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: sticky;
+      top: 0;
+      transform: translateX(100%);
+      margin-right: calc(-1 * var(--chat-width));
+      transition: transform 0.2s, margin-right 0.2s;
+    }
+    .layout.chat-open .chat-panel {
+      transform: translateX(0);
+      margin-right: 0;
+    }
+    .chat-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .chat-header h2 { font-size: 0.9rem; font-weight: 600; }
+    .chat-header button {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 4px;
+      line-height: 1;
+    }
+    .chat-header button:hover { color: var(--text); }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .chat-msg {
+      font-size: 0.85rem;
+      line-height: 1.5;
+      padding: 10px 14px;
+      border-radius: 12px;
+      max-width: 95%;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    .chat-msg.user {
+      background: var(--download);
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    .chat-msg.assistant {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+    .chat-msg.thinking {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      align-self: flex-start;
+      color: var(--muted);
+      font-style: italic;
+    }
+    .chat-input-area {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .chat-input-area input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    .chat-input-area input:focus { border-color: var(--download); }
+    .chat-input-area input::placeholder { color: var(--muted); }
+    .chat-input-area button {
+      background: var(--download);
+      border: none;
+      color: white;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .chat-input-area button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Chat toggle button */
+    .chat-toggle {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--download);
+      color: white;
+      border: none;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      z-index: 10;
+      transition: transform 0.15s;
+    }
+    .chat-toggle:hover { transform: scale(1.1); }
+    .layout.chat-open .chat-toggle { display: none; }
+
+    /* Dashboard styles */
     header {
       display: flex;
       align-items: center;
@@ -34,11 +183,7 @@
       margin-bottom: 24px;
     }
     header h1 { font-size: 1.5rem; font-weight: 600; }
-    header .subtitle { color: var(--muted); font-size: 0.875rem; }
-    .time-filters {
-      display: flex;
-      gap: 8px;
-    }
+    .time-filters { display: flex; gap: 8px; }
     .time-filters button {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -73,159 +218,116 @@
       letter-spacing: 0.05em;
       margin-bottom: 4px;
     }
-    .stat-card .value {
-      font-size: 2rem;
-      font-weight: 700;
-      line-height: 1.1;
-    }
-    .stat-card .unit {
-      font-size: 0.875rem;
-      color: var(--muted);
-      font-weight: 400;
-    }
-    .stat-card .sub {
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-top: 6px;
-    }
+    .stat-card .value { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+    .stat-card .unit { font-size: 0.875rem; color: var(--muted); font-weight: 400; }
+    .stat-card .sub { font-size: 0.75rem; color: var(--muted); margin-top: 6px; }
     .stat-card .sub span { margin-right: 12px; }
     .download .value { color: var(--download); }
     .upload .value { color: var(--upload); }
     .ping .value { color: var(--ping); }
     .health .value { color: var(--success); }
-
-    .charts-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 16px;
-      margin-bottom: 24px;
-    }
+    .charts-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 24px; }
     .chart-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 20px;
     }
-    .chart-card h2 {
-      font-size: 0.9rem;
-      font-weight: 600;
-      margin-bottom: 16px;
-    }
+    .chart-card h2 { font-size: 0.9rem; font-weight: 600; margin-bottom: 16px; }
     .chart-wrap { position: relative; height: 300px; }
-
-    .two-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 24px;
-    }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
     @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
-
-    .recent-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8rem;
-    }
+    .recent-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
     .recent-table th {
-      text-align: left;
-      color: var(--muted);
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--border);
-      font-weight: 500;
-      text-transform: uppercase;
-      font-size: 0.7rem;
-      letter-spacing: 0.05em;
+      text-align: left; color: var(--muted); padding: 8px 12px;
+      border-bottom: 1px solid var(--border); font-weight: 500;
+      text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em;
     }
-    .recent-table td {
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--border);
-    }
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 0.7rem;
-      font-weight: 500;
-    }
+    .recent-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 500; }
     .badge.completed { background: rgba(34,197,94,0.15); color: var(--success); }
     .badge.failed { background: rgba(239,68,68,0.15); color: var(--danger); }
-    .loading {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 200px;
-      color: var(--muted);
-    }
-    .isp-info {
-      font-size: 0.8rem;
-      color: var(--muted);
-      display: flex;
-      gap: 16px;
-      align-items: center;
-    }
+    .isp-info { font-size: 0.8rem; color: var(--muted); display: flex; gap: 16px; align-items: center; }
     .isp-info span { display: flex; align-items: center; gap: 4px; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div>
-        <h1>Speedtest Dashboard</h1>
-        <div class="isp-info" id="isp-info"></div>
-      </div>
-      <div class="time-filters">
-        <button data-range="24h" class="active">24h</button>
-        <button data-range="7d">7d</button>
-        <button data-range="30d">30d</button>
-        <button data-range="all">All</button>
-      </div>
-    </header>
+  <div class="layout" id="layout">
+    <div class="dashboard">
+      <header>
+        <div>
+          <h1>Speedtest Dashboard</h1>
+          <div class="isp-info" id="isp-info"></div>
+        </div>
+        <div class="time-filters">
+          <button data-range="24h" class="active">24h</button>
+          <button data-range="7d">7d</button>
+          <button data-range="30d">30d</button>
+          <button data-range="all">All</button>
+        </div>
+      </header>
 
-    <div class="stats-grid" id="stats-grid">
-      <div class="stat-card download">
-        <div class="label">Download</div>
-        <div class="value" id="dl-avg">—</div>
-        <div class="sub"><span id="dl-min"></span><span id="dl-max"></span></div>
+      <div class="stats-grid">
+        <div class="stat-card download">
+          <div class="label">Download</div>
+          <div class="value" id="dl-avg">—</div>
+          <div class="sub"><span id="dl-min"></span><span id="dl-max"></span></div>
+        </div>
+        <div class="stat-card upload">
+          <div class="label">Upload</div>
+          <div class="value" id="ul-avg">—</div>
+          <div class="sub"><span id="ul-min"></span><span id="ul-max"></span></div>
+        </div>
+        <div class="stat-card ping">
+          <div class="label">Ping</div>
+          <div class="value" id="ping-avg">—</div>
+          <div class="sub"><span id="ping-min"></span><span id="ping-max"></span></div>
+        </div>
+        <div class="stat-card health">
+          <div class="label">Success Rate</div>
+          <div class="value" id="success-rate">—</div>
+          <div class="sub"><span id="total-tests"></span></div>
+        </div>
       </div>
-      <div class="stat-card upload">
-        <div class="label">Upload</div>
-        <div class="value" id="ul-avg">—</div>
-        <div class="sub"><span id="ul-min"></span><span id="ul-max"></span></div>
-      </div>
-      <div class="stat-card ping">
-        <div class="label">Ping</div>
-        <div class="value" id="ping-avg">—</div>
-        <div class="sub"><span id="ping-min"></span><span id="ping-max"></span></div>
-      </div>
-      <div class="stat-card health">
-        <div class="label">Success Rate</div>
-        <div class="value" id="success-rate">—</div>
-        <div class="sub"><span id="total-tests"></span></div>
-      </div>
-    </div>
 
-    <div class="charts-grid">
-      <div class="chart-card">
-        <h2>Download &amp; Upload Speed</h2>
-        <div class="chart-wrap"><canvas id="speed-chart"></canvas></div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h2>Download &amp; Upload Speed</h2>
+          <div class="chart-wrap"><canvas id="speed-chart"></canvas></div>
+        </div>
       </div>
-    </div>
 
-    <div class="two-col">
-      <div class="chart-card">
-        <h2>Ping Latency</h2>
-        <div class="chart-wrap"><canvas id="ping-chart"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <h2>Recent Tests</h2>
-        <div style="max-height: 340px; overflow-y: auto;">
-          <table class="recent-table">
-            <thead><tr><th>Time</th><th>Down</th><th>Up</th><th>Ping</th><th>Status</th></tr></thead>
-            <tbody id="recent-body"></tbody>
-          </table>
+      <div class="two-col">
+        <div class="chart-card">
+          <h2>Ping Latency</h2>
+          <div class="chart-wrap"><canvas id="ping-chart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h2>Recent Tests</h2>
+          <div style="max-height: 340px; overflow-y: auto;">
+            <table class="recent-table">
+              <thead><tr><th>Time</th><th>Down</th><th>Up</th><th>Ping</th><th>Status</th></tr></thead>
+              <tbody id="recent-body"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- Chat Panel -->
+    <div class="chat-panel" id="chat-panel">
+      <div class="chat-header">
+        <h2>Ask about your data</h2>
+        <button onclick="toggleChat()" title="Close">&times;</button>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-area">
+        <input type="text" id="chat-input" placeholder="e.g. Why did tests fail last night?" autocomplete="off" />
+        <button id="chat-send" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+
+    <button class="chat-toggle" onclick="toggleChat()" title="Ask AI">&#x1F4AC;</button>
   </div>
 
   <script>
@@ -284,7 +386,6 @@
       const stats = statsRes.data || {};
       const latest = latestRes.data || {};
 
-      // ISP info from latest
       const data = latest.data || {};
       const isp = data.isp || '';
       const server = data.server || data.serverSelection?.servers?.[0]?.server || {};
@@ -295,7 +396,6 @@
         extIp && `<span>${extIp}</span>`,
       ].filter(Boolean).join('');
 
-      // Stats cards
       if (stats.download) {
         $('#dl-avg').innerHTML = bitsHuman(stats.download.avg);
         $('#dl-min').textContent = `Min: ${mbps(stats.download.min)} Mbps`;
@@ -318,7 +418,6 @@
       $('#success-rate').innerHTML = rate + '<span class="unit">%</span>';
       $('#total-tests').textContent = `${completed} / ${total} tests`;
 
-      // Charts
       const sorted = [...results].filter(r => r.status === 'completed').sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       const labels = sorted.map(r => new Date(r.created_at));
       const dlData = sorted.map(r => (r.download * 8) / 1e6);
@@ -331,25 +430,11 @@
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { labels: { color: '#71717a', usePointStyle: true, pointStyle: 'circle', padding: 16 } },
-          tooltip: {
-            backgroundColor: '#1a1d27',
-            borderColor: '#2a2d3a',
-            borderWidth: 1,
-            titleColor: '#e4e4e7',
-            bodyColor: '#e4e4e7',
-          },
+          tooltip: { backgroundColor: '#1a1d27', borderColor: '#2a2d3a', borderWidth: 1, titleColor: '#e4e4e7', bodyColor: '#e4e4e7' },
         },
         scales: {
-          x: {
-            type: 'time',
-            grid: { color: 'rgba(255,255,255,0.04)' },
-            ticks: { color: '#71717a', maxTicksLimit: 12 },
-          },
-          y: {
-            grid: { color: 'rgba(255,255,255,0.04)' },
-            ticks: { color: '#71717a' },
-            beginAtZero: true,
-          },
+          x: { type: 'time', grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#71717a', maxTicksLimit: 12 } },
+          y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#71717a' }, beginAtZero: true },
         },
       };
 
@@ -359,26 +444,8 @@
         data: {
           labels,
           datasets: [
-            {
-              label: 'Download (Mbps)',
-              data: dlData,
-              borderColor: '#3b82f6',
-              backgroundColor: 'rgba(59,130,246,0.1)',
-              fill: true,
-              tension: 0.3,
-              pointRadius: range === '24h' ? 3 : 0,
-              borderWidth: 2,
-            },
-            {
-              label: 'Upload (Mbps)',
-              data: ulData,
-              borderColor: '#8b5cf6',
-              backgroundColor: 'rgba(139,92,246,0.1)',
-              fill: true,
-              tension: 0.3,
-              pointRadius: range === '24h' ? 3 : 0,
-              borderWidth: 2,
-            },
+            { label: 'Download (Mbps)', data: dlData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3, pointRadius: range === '24h' ? 3 : 0, borderWidth: 2 },
+            { label: 'Upload (Mbps)', data: ulData, borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.3, pointRadius: range === '24h' ? 3 : 0, borderWidth: 2 },
           ],
         },
         options: { ...commonOpts, scales: { ...commonOpts.scales, y: { ...commonOpts.scales.y, ticks: { ...commonOpts.scales.y.ticks, callback: v => v + ' Mbps' } } } },
@@ -389,21 +456,11 @@
         type: 'line',
         data: {
           labels,
-          datasets: [{
-            label: 'Ping (ms)',
-            data: pingData,
-            borderColor: '#f59e0b',
-            backgroundColor: 'rgba(245,158,11,0.1)',
-            fill: true,
-            tension: 0.3,
-            pointRadius: range === '24h' ? 3 : 0,
-            borderWidth: 2,
-          }],
+          datasets: [{ label: 'Ping (ms)', data: pingData, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3, pointRadius: range === '24h' ? 3 : 0, borderWidth: 2 }],
         },
         options: { ...commonOpts, scales: { ...commonOpts.scales, y: { ...commonOpts.scales.y, ticks: { ...commonOpts.scales.y.ticks, callback: v => v + ' ms' } } } },
       });
 
-      // Recent tests table
       const recent = results.slice(0, 15);
       $('#recent-body').innerHTML = recent.map(r => {
         const time = new Date(r.created_at).toLocaleString('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -417,14 +474,72 @@
       }).join('');
     }
 
-    // Init
     document.querySelectorAll('.time-filters button').forEach(btn => {
       btn.addEventListener('click', () => loadData(btn.dataset.range));
     });
     loadData('24h');
-
-    // Auto-refresh every 60s
     setInterval(() => loadData(currentRange), 60000);
+
+    // --- Chat ---
+    let chatHistory = []; // {role, content} pairs for Claude API
+    let chatBusy = false;
+
+    function toggleChat() {
+      $('#layout').classList.toggle('chat-open');
+      if ($('#layout').classList.contains('chat-open')) {
+        setTimeout(() => $('#chat-input').focus(), 200);
+      }
+    }
+
+    function addChatMsg(role, text) {
+      const el = document.createElement('div');
+      el.className = `chat-msg ${role}`;
+      el.textContent = text;
+      $('#chat-messages').appendChild(el);
+      $('#chat-messages').scrollTop = $('#chat-messages').scrollHeight;
+      return el;
+    }
+
+    async function sendMessage() {
+      const input = $('#chat-input');
+      const text = input.value.trim();
+      if (!text || chatBusy) return;
+
+      input.value = '';
+      addChatMsg('user', text);
+      chatHistory.push({ role: 'user', content: text });
+
+      chatBusy = true;
+      $('#chat-send').disabled = true;
+      const thinkingEl = addChatMsg('thinking', 'Analyzing data...');
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: chatHistory }),
+        });
+        const data = await res.json();
+        thinkingEl.remove();
+
+        const reply = data.response || 'Sorry, something went wrong.';
+        addChatMsg('assistant', reply);
+        chatHistory.push({ role: 'assistant', content: reply });
+      } catch (err) {
+        thinkingEl.remove();
+        addChatMsg('assistant', 'Error: ' + err.message);
+      } finally {
+        chatBusy = false;
+        $('#chat-send').disabled = false;
+      }
+    }
+
+    $('#chat-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
   </script>
 </body>
 </html>
