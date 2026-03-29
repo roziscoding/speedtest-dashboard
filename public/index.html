@@ -288,6 +288,13 @@
       transition: all 0.15s;
     }
     .chat-retry:hover { background: var(--border); }
+    .chat-cost {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid var(--border);
+    }
   </style>
 </head>
 <body>
@@ -586,7 +593,13 @@
         }
 
         const reply = data.response || 'Sorry, I got an empty response.';
-        addChatMsg('assistant', marked.parse(reply), { html: true });
+        const el = addChatMsg('assistant', marked.parse(reply), { html: true });
+        if (data.usage) {
+          const costEl = document.createElement('div');
+          costEl.className = 'chat-cost';
+          costEl.textContent = `${data.usage.input_tokens.toLocaleString()} in · ${data.usage.output_tokens.toLocaleString()} out · ${data.usage.cost}`;
+          el.appendChild(costEl);
+        }
         chatHistory.push({ role: 'assistant', content: reply });
       } catch (err) {
         thinkingEl.remove();

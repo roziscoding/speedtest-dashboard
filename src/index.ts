@@ -225,6 +225,12 @@ app.post("/api/chat", async (c) => {
     // Only send the last 20 messages to avoid token bloat
     let currentMessages = messages.slice(-20);
 
+    // Haiku 4.5 pricing per million tokens
+    const INPUT_COST_PER_MTOK = 1.0;
+    const OUTPUT_COST_PER_MTOK = 5.0;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+
     // Tool use loop — run tools until we get a final text response
     for (let i = 0; i < 10; i++) {
       const response = await client.messages.create({
@@ -234,6 +240,9 @@ app.post("/api/chat", async (c) => {
         tools,
         messages: currentMessages,
       });
+
+      totalInputTokens += response.usage.input_tokens;
+      totalOutputTokens += response.usage.output_tokens;
 
       if (response.stop_reason === "tool_use") {
         const toolResults: Anthropic.ToolResultBlockParam[] = [];
@@ -267,11 +276,27 @@ app.post("/api/chat", async (c) => {
           .filter((b): b is Anthropic.TextBlock => b.type === "text")
           .map((b) => b.text)
           .join("");
-        return c.json({ response: text });
+
+        const cost = (totalInputTokens / 1e6) * INPUT_COST_PER_MTOK
+                   + (totalOutputTokens / 1e6) * OUTPUT_COST_PER_MTOK;
+
+        return c.json({
+          response: text,
+          usage: {
+            input_tokens: totalInputTokens,
+            output_tokens: totalOutputTokens,
+            cost: `$${cost.toFixed(4)}`,
+          },
+        });
       }
     }
 
-    return c.json({ response: "Sorry, I hit my tool use limit. Try a simpler question." });
+    const cost = (totalInputTokens / 1e6) * INPUT_COST_PER_MTOK
+               + (totalOutputTokens / 1e6) * OUTPUT_COST_PER_MTOK;
+    return c.json({
+      response: "Sorry, I hit my tool use limit. Try a simpler question.",
+      usage: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens, cost: `$${cost.toFixed(4)}` },
+    });
   } catch (err: any) {
     const status = err.status ?? 500;
     const msg = err.error?.error?.message ?? err.message ?? "Unknown error";
